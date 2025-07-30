@@ -3,6 +3,7 @@
 3. Figure out the chapter to section mapping and download that
 4. Parse the downloaded text
 5. Download other details like notifications etc.
+6. Explore a MCP server for IndiaCode
 
 -----------------------
 OLD README

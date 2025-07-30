@@ -7,6 +7,64 @@ import time
 import subprocess
 from urllib.parse import urlparse
 from playwright.sync_api import sync_playwright
+import pdfplumber
+import re
+
+def extract_date_from_citation_pdf(pdf_path: str):
+    """
+    Reads the first 10 lines of the PDF, checks for 'section', and extracts a last updated date if present.
+    Returns: (date_string, full_text)
+    """
+    lines = []
+    try:
+        with pdfplumber.open(pdf_path) as pdf:
+            for page in pdf.pages:
+                text = page.extract_text()
+                if not text:
+                    continue
+                page_lines = text.splitlines()
+                for line in page_lines:
+                    lines.append(line)
+                    if len(lines) >= 10:
+                        break
+                if len(lines) >= 10:
+                    break
+    except Exception as e:
+        print(f"Error reading PDF {pdf_path}: {e}")
+        return None, None
+
+    # Case 1: Look for 'As modified upto' or 'As modified up to' (with optional spaces, case-insensitive)
+    for line in lines:
+        l = line.lower().replace('  ', ' ')
+        if 'as modified upto' in l or 'as modified up to' in l:
+            # Regex for these patterns
+            # Handles: (As modified upto the 28th January, 2019), (As modified up to the 12 th December 2012), etc.
+            match = re.search(r'(?:as modified up\s*to|as modified upto)\s*\(?\s*the\s*(\d{1,2})\s*(?:st|nd|rd|th)?\s*(?:of\s*)?([A-Za-z]+),?\s*(\d{4})', l)
+            if match:
+                day = match.group(1)
+                month = match.group(2).capitalize()
+                year = match.group(3)
+                return f"{day} {month} {year}", lines
+    # Case 2: Look for a line with 'Text as on '
+    for line in lines:
+        if 'text as on ' in line.lower():
+            # Extract everything after 'Text as on '
+            idx = line.lower().find('text as on ')
+            date_portion = line[idx + len('text as on '):].strip('[]').strip()
+            # Try to extract a date from the remainder
+            # e.g. '7th June 2024' or '7 June 2024'
+            date_match = re.search(r'(\d{1,2})(?:st|nd|rd|th)?\s+([A-Za-z]+)\s+(\d{4})', date_portion)
+            if date_match:
+                # Normalize date to 'DD Month YYYY'
+                day = date_match.group(1)
+                month = date_match.group(2)
+                year = date_match.group(3)
+                return f"{day} {month} {year}", lines
+            # Fallback: just return the portion after 'Text as on '
+            return date_portion, lines
+    # If not found, fall back to old patterns
+    return None, lines
+
 
 class ChapterInfo(BaseModel):
     number: str
@@ -396,6 +454,25 @@ def main():
             else:
                 print(f'\tCitation PDF: {citation_pdf_url}: fetching...')
                 fetch_pdf(citation_pdf_url, citation_pdf)
+
+            # If there are sections and citation_pdf exists, extract last updated date
+
+            date_json_path = citation_pdf.parent / 'last_updated_date.json'
+            if act_details.sections and citation_pdf.exists():# and not date_json_path.exists():
+                # if str(act_web_number) == '19823':
+                #     import pdb
+                #     pdb.set_trace()
+                date_str, joined_texts   = extract_date_from_citation_pdf(str(citation_pdf))
+                # print('\n'.join(joined_texts))
+                if date_str:
+                    with open(date_json_path, 'w') as f:
+                        json.dump({'last_updated_date': date_str}, f)
+                    print(f'\tExtracted last updated date: {date_str}')
+                else:
+                    print(f'#\tNo last updated date found. {citation_pdf_url}.')
+                    print('#' + '\n#'.join(joined_texts) + '\n#===========================')
+
+                #import pdb; pdb.set_trace()
 
         for act_pdf_url in act_details.pdf_urls:
             act_pdf_url = act_pdf_url.replace('nic.in ', 'nic.in')
