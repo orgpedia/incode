@@ -53,6 +53,7 @@ def main():
             # Other PDFs (show all links as [1] [2] ...)
             pdfs = act_json.get("pdf_urls", [])
             for i, url in enumerate(pdfs):
+                url = url.replace('www.indiacode.nic.in ', 'www.indiacode.nic.in')
                 other_pdfs_links.append(f"\[[{i+1}]({url})\]")
             # Last updated date
             last_updated_path = act_dir / "citation_pdf" / "last_updated_date.json"
