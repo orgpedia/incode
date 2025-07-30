@@ -8,6 +8,9 @@ fetch_list:
 fetch_acts_mah:
 	python import/src/fetch_acts.py import/website/Maharashtra/act_infos.json
 
+generate_readme:
+	python import/src/generate_readme.py Maharashtra
+
 help:
 	@echo "make fetch_list        # Run fetch_list.py to fetch the list of acts"
 	@echo "make fetch_acts_mah    # Run fetch_acts.py for Maharashtra acts"
